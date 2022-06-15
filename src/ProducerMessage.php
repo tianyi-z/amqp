@@ -7,7 +7,7 @@ class ProducerMessage extends \Hyperf\Amqp\Message\ProducerMessage
 {
     public function getProperties(): array
     {
-        $this->properties['message_id'] = ApplicationContext::getContainer()->get( \Hidehalo\Nanoid\Client::class)->generateId(21, \Hidehalo\Nanoid\Client::MODE_DYNAMIC);
+        $this->properties['message_id'] = ApplicationContext::getContainer()->get(MessageId::class)->generateId();
         return parent::getProperties();
     }
 }

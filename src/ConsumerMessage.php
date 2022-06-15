@@ -4,15 +4,20 @@ namespace YuanxinHealthy\Amqp;
 use Hyperf\Amqp\Builder\ExchangeBuilder;
 use Hyperf\Amqp\Builder\QueueBuilder;
 use Hyperf\Amqp\Message\Type;
-use Hyperf\Amqp\Message\ConsumerMessage;
 use Hyperf\Amqp\Result;
 use Hyperf\Utils\ApplicationContext;
 use Hyperf\Contract\StdoutLoggerInterface;
-class Consumer extends ConsumerMessage
+use PhpAmqpLib\Message\AMQPMessage;
+class ConsumerMessage extends \Hyperf\Amqp\Message\ConsumerMessage
 {
     protected $type = Type::DIRECT;
     protected $queueDurable = true;
     protected $exchangeDurable = true;
+    /**
+     * 异常的时候ACK.
+     * @var string
+     */
+    protected $throwableResultAck = Result::NACK;
 
     /**
      * @param $data
@@ -20,27 +25,31 @@ class Consumer extends ConsumerMessage
      *
      * @return string
      */
-    public function consumeMessage($data, AMQPMessage $message): string
+    public function consumeMessage($data, \PhpAmqpLib\Message\AMQPMessage $message): string
     {
         try {
             return $this->handle($data, $message);
         } catch (\Throwable $throwable) {
             $log = [
-                'ip' => env('POD_ID', ''), // 机器IP
+                'ip' => env('POD_IP', ''), // 机器IP
                 'file' => $throwable->getFile(),
                 'line' => $throwable->getLine(),
                 'code' => $throwable->getCode(),
                 'exception' => get_class($throwable),
                 'queue' => $this->getQueue(), // 队列
                 'exchange' => $this->getExchange(), //交换区.
-                'message_id' => $message->getMessageId(), // 消息ID.
+                'message_id' => $this->getMessageId($message), // 消息ID.
                 'data' => $data, // 消息体.
             ];
-            ApplicationContext::getContainer()->get(StdoutLoggerInterface::class)->error(
-                $exception->getTraceAsString(),
+            ApplicationContext::getContainer()->get(StdoutLoggerInterface::class)->debug(
+                $throwable->getTraceAsString(),
                 $log
             );
-            return Result::NACK;
+            ApplicationContext::getContainer()->get(StdoutLoggerInterface::class)->error(
+                $throwable->getTraceAsString(),
+                $log
+            );
+            return $this->throwableResultAck;
         }
     }
 
@@ -98,5 +107,19 @@ class Consumer extends ConsumerMessage
     public function getQueueDurable()
     {
         return $this->queueDurable;
+    }
+
+    public function getMessageId(\PhpAmqpLib\Message\AMQPMessage $message)
+    {
+        $propertie = $message->get_properties();
+        if (!is_array($propertie) || !isset($propertie['message_id'])) {
+            return '';
+        }
+        return $propertie['message_id'];
+    }
+    public function getConsumerTag(): string
+    {
+        //不能用冒号.
+        return env('POD_IP', env('APP_NAME')).'-RAND'.mt_rand(10000, 99999).'-PID'.getmypid();
     }
 }

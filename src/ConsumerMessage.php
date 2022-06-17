@@ -120,6 +120,6 @@ class ConsumerMessage extends \Hyperf\Amqp\Message\ConsumerMessage
     public function getConsumerTag(): string
     {
         //不能用冒号.
-        return env('POD_IP', env('APP_NAME')).'-RAND'.mt_rand(10000, 99999).'-PID'.getmypid();
+        return env('POD_IP', env('APP_NAME')). '-UNQ'.uniqid().'-PID'.getmypid();
     }
 }
